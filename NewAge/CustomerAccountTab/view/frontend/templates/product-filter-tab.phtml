@@ -1,0 +1,317 @@
+<link rel="stylesheet" type="text/css" href="<?= $block->getViewFileUrl('NewAge_CustomerAccountTab::css/dev_custom_bootstrap.css'); ?>">
+<link rel="stylesheet" type="text/css" href="<?= $block->getViewFileUrl('NewAge_CustomerAccountTab::css/j-style.css'); ?>">
+<!--Form-->
+<form data-mage-init='{"validation": {}}' class="form" id="myForm" method="post" autocomplete="off">
+<div id="appFrame" class="j_ j_overflow-no-scroll">
+    <table class="j_ j_table j_table-striped">
+        <thead class="j_ j_d-flex j_justify-content-around">
+          
+            <div id="formRow" class="j_ j_row">
+                <div class="j_ j_col-3">
+                    <label for="lowRangeInput"><?php echo __('Min:') ?></label>
+                    <input  class="j_ j_form-control integer" type="number" id="lowRangeInput" name="lowRange" 
+                    data-validate='{
+                        required:true,
+                        "must-be-equal-or-greater-than-zero":true}'>
+                </div>
+                <div class="j_ j_col-3">
+                    <label for="highRangeInput"><?php echo __('Max:') ?></label>
+                    <input class="j_ j_form-control" type="number" id="highRangeInput" name="highRange" 
+                    data-validate='{
+                        required:true,
+                        "max-must-be-greater-than-low":true,
+                        "max-must-be-no-greater-than-5x-of-min":true}'>
+                </div>
+                <div class="j_ j_col-3">
+                    <label for="sortInput"><?php echo __('Sort:') ?></label>
+                    <select class="j_ j_form-control" name="sort" id="sortInput">
+                        <option value="asc">Asc</option>
+                        <option value="desc">Desc</option>
+                    </select>
+                </div>
+                <div class="j_ j_col-3">
+              <label for="highRangeInput">&nbsp;</label>
+                    <div>
+                        <button  name="submit" id="submitSearch"><?php echo __('Submit') ?></button>
+                    </div>
+                </div>
+            </div>
+            <div id="resultCount" class="j_ j_row"><span class="j_ j_flex j_justify-content-around">&nbsp;</span></div>
+        </thead>
+        <tbody id="product_filter_table">
+        </tbody>
+    </table>
+</div>
+</form>
+
+<!-- Modal -->
+<div class="j_modal j_modal-backdrop j_overflow-auto" id="childProductModal" tabindex="-1" role="dialog" aria-labelledby="jModelTitle" aria-hidden="true">
+  <div class="j_modal-dialog" role="document">
+    <div class="j_modal-content">
+      <div class="j_modal-header">
+        <h4 class="modal-title" id="jModelTitle"><?php echo __('Product Options') ?></h4>
+        <button type="button" class="j_close" data-dismiss="modal" aria-label="Close">Close</button>
+      </div>
+      <div id="childProductModalBody" class="j_modal-body">
+      </div>
+      <div class="j_modal-footer">
+        <button type="button" class="j_close" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// AJAX Logic
+var configurableArray = {};
+var groupedArray = {};
+var bundledArray = {};
+
+require([
+    'jquery',
+    'mage/validation',
+    'mage/translate',
+    'Magento_Ui/js/modal/modal'
+],
+function($,modal) {
+    // var options = {
+    //     type: 'popup',
+    //     responsive: true,
+    //     innerScroll: true,
+    //     title: 'Modal Title',
+    //     modalClass: 'custom-modal',
+    //     buttons: [{
+    //         text: $.mage.__('Continue'),
+    //         class: 'm_close',
+    //         click: function () {
+    //             this.closeModal();
+    //         }
+    //     }]
+    // };
+    // $(appFrame
+    // var $myModal = $('#childProductModal');
+    // var popup = modal(options, $myModal);
+    
+    var dataForm = $('#myForm');
+    var ignore = null;
+    
+    dataForm.mage('validation', {
+        ignore: ignore ? ':hidden:not(' + ignore + ')' : ':hidden'
+    }).find('input:text').attr('autocomplete', 'off');
+    $('#myForm #submitSearch').on('click', function() {
+         // validate  
+        $.validator.validateSingleElement($(document.getElementById("highRangeInput")));
+        $.validator.validateSingleElement($(document.getElementById("lowRangeInput")));
+    });
+    $("#submitSearch").click(function(){
+        var lowRangeInput = parseInt(document.getElementById("lowRangeInput").value);
+        var highRangeInput = parseInt(document.getElementById("highRangeInput").value);
+        var limit = 5*parseInt(lowRangeInput);
+        var sort = document.getElementById("sortInput").value;
+        if(isNaN(lowRangeInput) || isNaN(highRangeInput) || isNaN(limit)) {
+            return false;
+        } else if(highRangeInput > limit){
+            return false;
+        } else if(highRangeInput <= lowRangeInput){
+            return false;
+        } else if(lowRangeInput < 0){
+            return false;
+        } else {
+            // Clear Table Contents
+            $('#product_filter_table').html("");
+            $.ajax({
+                url: "<?= $escaper->escapeHtml($block->getUrl('newage/index/product') ); ?>",
+                type: "POST",
+                dataType: "json",
+                data: {
+                    from: lowRangeInput,
+                    to: highRangeInput,
+                    sort: sort
+                    // page: 1 // for future pagination feature
+                },
+                success: success()
+            })
+                .done(function (data) {
+                    if(data.json_data == "error-v"){
+                        return false;
+                    }
+                    var resultCount = data.json_data.length;
+                    if(resultCount < 1){
+                        $('#resultCount').html('Results: 0');
+                    } else {
+                        $('#resultCount').html('Results: '+resultCount +' of '+ data.json_data[0]['resultsFound']);
+                        //Create Row Headers
+                        $('#product_filter_table').append('<tr><th>Name</th><th>Price</th><th>Qty</th><th>Sku</th><th>Thumbnail</th><th>Product Page</th></tr>');
+                        $.each(data.json_data, function(k, v) {
+                            if(typeof v.priceRange == "array" || typeof v.priceRange == "object"){
+                                console.log(v.priceRange["min"] +"-"+v.priceRange["max"]);
+                                v.formattedPrice = v.priceRange["min"] +"-"+v.priceRange["max"];
+                            }
+                            if(typeof v.configurableProduct == "object"){
+                                v.qty  = `<button data-parent-sku="${v.sku}" onclick="displayConfigurableProductsModal(this.getAttribute('data-parent-sku'))" class="btn btn-primary">See Options</button>`;
+                            } else
+                            if(typeof v.groupedProduct == "object"){
+                                v.qty  = `<button data-parent-sku="${v.sku}" onclick="displayGroupedProductsModal(this.getAttribute('data-parent-sku'))" class="btn btn-primary">See Options</button>`;
+                                if(typeof v.priceRange == "array" || typeof v.priceRange == "object"){
+                                    v.formattedPrice = v.priceRange["min"] +"-"+v.priceRange["max"];
+                                }
+                            } else
+                            if(typeof v.bundledProduct == "object"){
+                                v.qty  = `<button data-parent-sku="${v.sku}" onclick="displayBundledProductsModal(this.getAttribute('data-parent-sku'))" class="btn btn-primary">See Options</button>`;
+                                setBundledArray(v.sku,'[]');
+                                $.each(v.bundledProduct, function(childKey, childProduct) {
+                                    setBundledArray(v.sku,{
+                                        name: childProduct.name +" - "+childProduct.type,
+                                        qty: childProduct.qty,
+                                        price: childProduct.formattedPrice,
+                                        thumbnail: childProduct.thumbnail,
+                                        sku: childProduct.sku
+                                    })
+                                });
+                            }
+                            setConfigurableArray(v.sku,'[]');
+                            if(typeof v.configurableProduct == "object"){
+                                $.each(v.configurableProduct, function(childKey, childProduct) {
+                                    setConfigurableArray(v.sku,{
+                                        name: childProduct.name,
+                                        qty: childProduct.qty,
+                                        price: childProduct.formattedPrice,
+                                        thumbnail: childProduct.thumbnail,
+                                        sku: childProduct.sku
+                                    })
+                                });
+                            } else
+                            setGroupedArray(v.sku,'[]');
+                            if(typeof v.groupedProduct == "object"){
+                                $.each(v.groupedProduct, function(childKey, childProduct) {
+                                    setGroupedArray(v.sku,{
+                                        name: childProduct.name,
+                                        qty: childProduct.qty,
+                                        price: childProduct.formattedPrice,
+                                        thumbnail: childProduct.thumbnail,
+                                        sku: childProduct.sku
+                                    })
+                                });
+                            }
+                            // Create Rows
+                            $('#product_filter_table').append( '<tr><td>' + v.name + '</td><td>' + v.formattedPrice + '</td><td>' + v.qty + '</td><td>' + v.sku + '</td><td><img class="j_thumbnail" src="' + v.thumbnail + '"></td><td><a href="' + v.productLink + '">Product Page</a></td></tr>');
+                        })
+                    }
+                });
+            function success(){
+                console.log("Success!");
+            }
+        }
+        return false;
+    });
+});
+function setConfigurableArray(key,value){
+    if(value == '[]'){
+        configurableArray[key] = [];
+    } else {
+        configurableArray[key].push(value);
+    }
+}
+function setGroupedArray(key,value){
+    if(value == '[]'){
+        groupedArray[key] = [];
+    } else {
+        groupedArray[key].push(value);
+    }
+}
+function setBundledArray(key,value){
+    if(value == '[]'){
+        bundledArray[key] = [];
+    } else {
+        bundledArray[key].push(value);
+    }
+}
+function displayConfigurableProductsModal(sku){
+    var _modal = document.getElementById('childProductModal');
+    var modalBody = document.getElementById('childProductModalBody');
+    _modal.style.display='block';
+    var childrenProductsRow = ""
+    var arr = configurableArray[sku];
+    var i = 0;
+
+    while(i < arr.length){
+        childrenProductsRow += '<tr><td>' + arr[i].name + '</td><td class="">' + arr[i].price + '</td><td class="">' + arr[i].qty+ '</td><td class=""><img class="j_thumbnail" src="'+arr[i].thumbnail+'"></td><td class="">'+arr[i].sku+'</td></tr>';
+        i++;
+    }
+    document.getElementById('childProductModalBody').innerHTML = `<table class="j_table j_table-striped"><tr><th class="">Name</th><th class="">Price</th><th class="">Qty</th><th class="">Thumbnail</th><th class="">Sku</th></tr>${childrenProductsRow}</table>`;
+    // Get the element that closes the modal
+    var closeBtn1 = document.getElementsByClassName("j_close")[0];
+    var closeBtn2 = document.getElementsByClassName("j_close")[1];
+    // When the user clicks on (x), close the modal
+    closeBtn1.onclick = function() {
+      _modal.style.display = "none";
+    }
+    // When the user clicks on (close button) in j_modal-footer, close the modal
+    closeBtn2.onclick = function() {
+      _modal.style.display = "none";
+    }
+}
+function displayGroupedProductsModal(sku){
+    var _modal = document.getElementById('childProductModal');
+    var modalBody = document.getElementById('childProductModalBody');
+    _modal.style.display='block';
+    var childrenProductsRow = "";
+    var arr = groupedArray[sku];
+    var i = 0;
+    while(i < arr.length){
+        childrenProductsRow += '<tr><td>' + arr[i].name + '</td><td class="">' + arr[i].price + '</td><td class="">' + arr[i].qty+ '</td><td class=""><img class="j_thumbnail" src="'+arr[i].thumbnail+'"></td><td class="">'+arr[i].sku+'</td></tr>';
+        i++;
+    }
+    document.getElementById('childProductModalBody').innerHTML = `<table class="j_table j_table-striped"><tr><th class="">Name</th><th class="">Price</th><th class="">Qty</th><th class="">Thumbnail</th><th class="">Sku</th></tr>${childrenProductsRow}</table>`;
+    // Get the element that closes the modal
+    var closeBtn1 = document.getElementsByClassName("j_close")[0];
+    var closeBtn2 = document.getElementsByClassName("j_close")[1];
+    // When the user clicks on (x), close the modal
+    closeBtn1.onclick = function() {
+      _modal.style.display = "none";
+    }
+    // When the user clicks on (close button) in j_modal-footer, close the modal
+    closeBtn2.onclick = function() {
+      _modal.style.display = "none";
+    }
+}
+
+function displayBundledProductsModal(sku){
+    var _modal = document.getElementById('childProductModal');
+    var modalBody = document.getElementById('childProductModalBody');
+    _modal.style.display='block';
+    var childrenProductsRow = "";
+    var arr = bundledArray[sku];
+    var i = 0;
+    while(i < arr.length){
+        childrenProductsRow += '<tr><td>' + arr[i].name + '</td><td class="">' + arr[i].price + '</td><td class="">' + arr[i].qty+ '</td><td class=""><img class="j_thumbnail" src="'+arr[i].thumbnail+'"></td><td class="">'+arr[i].sku+'</td></tr>';
+        i++;
+    }
+    document.getElementById('childProductModalBody').innerHTML = `<table class="j_table j_table-striped"><tr><th class="">Name</th><th class="">Price</th><th class="">Qty</th><th class="">Thumbnail</th><th class="">Sku</th></tr>${childrenProductsRow}</table>`;
+    // Get the element that closes the modal
+    var closeBtn1 = document.getElementsByClassName("j_close")[0];
+    var closeBtn2 = document.getElementsByClassName("j_close")[1];
+    // When the user clicks on (x), close the modal
+    closeBtn1.onclick = function() {
+      _modal.style.display = "none";
+    }
+    // When the user clicks on (close button) in j_modal-footer, close the modal
+    closeBtn2.onclick = function() {
+      _modal.style.display = "none";
+    }
+}
+    
+</script>
+
+<script type="text/x-magento-init">
+    {
+        "#myForm": {
+            "validation": {},
+            "NewAge_CustomerAccountTab/js/max-must-be-greater-than-low": {},
+            "NewAge_CustomerAccountTab/js/must-be-equal-or-greater-than-zero": {},
+            "NewAge_CustomerAccountTab/js/max-must-be-no-greater-than-5x-of-min": {}
+        }
+    }
+</script>
+
