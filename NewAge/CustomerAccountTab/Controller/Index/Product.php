@@ -113,7 +113,12 @@ class Product extends Action
         $this->request = $request;
         $this->resultFactory = $resultFactory;
     }
-
+    /**
+     * @param $pricefrom
+     * @param $priceto
+     * @param $orderBy
+     * @return string
+     */
     public function filterProduct($pricefrom,$priceto,$orderBy)
     {
         $productCollection = $this->collectionFactory->create();
@@ -127,17 +132,15 @@ class Product extends Action
         } else
         if($orderBy == "desc"){
             $productCollectionResults = $productCollection
-                    ->addFieldToFilter('price', array(
-                            array('gt' => $pricefrom, 'lt' => $priceto),
-                        )
-                    )
+                      ->addFieldToFilter('price', ['gteq' => $pricefrom])
+                        ->addFieldToFilter('price', ['lteq' => $priceto])
+                        ->addFieldToFilter('visibility',['neq'=>1])
                     ->addFieldToFilter('visibility',['neq'=>1])
                     // ->addFieldToFilter('type_id',['eq'=>"group"])
                     ->addAttributeToSort('price','desc');
         }
         
         $resultsFound = count($productCollectionResults->getData());
-        
         $productCollectionResults->setPageSize(10);
         // $productCollectionResults->setCurPage($page);
         
