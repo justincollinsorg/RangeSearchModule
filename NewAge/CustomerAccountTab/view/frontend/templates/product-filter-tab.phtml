@@ -1,6 +1,7 @@
 <link rel="stylesheet" type="text/css" href="<?= $block->getViewFileUrl('NewAge_CustomerAccountTab::css/dev_custom_bootstrap.css'); ?>">
 <link rel="stylesheet" type="text/css" href="<?= $block->getViewFileUrl('NewAge_CustomerAccountTab::css/j-style.css'); ?>">
 <!--Form-->
+
 <form data-mage-init='{"validation": {}}' class="form" id="myForm" method="post" autocomplete="off">
 <div id="appFrame" class="j_ j_overflow-no-scroll">
     <table class="j_ j_table j_table-striped">
@@ -67,7 +68,7 @@
 var configurableArray = {};
 var groupedArray = {};
 var bundledArray = {};
-
+window._g_ = {};
 require([
     'jquery',
     'mage/validation',
@@ -104,6 +105,10 @@ function($,modal) {
         $.validator.validateSingleElement($(document.getElementById("highRangeInput")));
         $.validator.validateSingleElement($(document.getElementById("lowRangeInput")));
     });
+    
+    document.querySelectorAll("#myForm input")[0].style.fontSize='16px';
+    document.querySelectorAll("#myForm input")[1].style.fontSize='16px';
+    document.querySelectorAll("#myForm select")[0].style.fontSize='16px';
     $("#submitSearch").click(function(){
         var lowRangeInput = parseInt(document.getElementById("lowRangeInput").value);
         var highRangeInput = parseInt(document.getElementById("highRangeInput").value);
@@ -133,6 +138,7 @@ function($,modal) {
                 success: success()
             })
                 .done(function (data) {
+                    window._g_.json_data = data.json_data;
                     if(data.json_data == "error-v"){
                         return false;
                     }
@@ -149,16 +155,19 @@ function($,modal) {
                                 v.formattedPrice = v.priceRange["min"] +"-"+v.priceRange["max"];
                             }
                             if(typeof v.configurableProduct == "object"){
-                                v.qty  = `<button data-parent-sku="${v.sku}" onclick="displayConfigurableProductsModal(this.getAttribute('data-parent-sku'))" class="btn btn-primary">See Options</button>`;
+                                // onclick="displayConfigurableProductsModal(this.getAttribute('data-parent-sku'))"
+                                v.qty  = `<a href="javascript:displayConfigurableProductsModal('${v.sku}');" data-parent-sku="${v.sku}"  class="btn btn-primary">See Options</button>`;
                             } else
                             if(typeof v.groupedProduct == "object"){
-                                v.qty  = `<button data-parent-sku="${v.sku}" onclick="displayGroupedProductsModal(this.getAttribute('data-parent-sku'))" class="btn btn-primary">See Options</button>`;
+                                v.qty  = `<a href="javascript:displayGroupedProductsModal('${v.sku}');" data-parent-sku="${v.sku}" class="btn btn-primary">See Options</a>`;
+                                // onclick="displayGroupedProductsModal(this.getAttribute('data-parent-sku'))" 
                                 if(typeof v.priceRange == "array" || typeof v.priceRange == "object"){
                                     v.formattedPrice = v.priceRange["min"] +"-"+v.priceRange["max"];
                                 }
                             } else
                             if(typeof v.bundledProduct == "object"){
-                                v.qty  = `<button data-parent-sku="${v.sku}" onclick="displayBundledProductsModal(this.getAttribute('data-parent-sku'))" class="btn btn-primary">See Options</button>`;
+                                // onclick="displayBundledProductsModal(this.getAttribute('data-parent-sku'))" 
+                                v.qty  = `<a href="javascript:displayBundledProductsModal('${v.sku}');" data-parent-sku="${v.sku}" class="btn btn-primary">See Options</button>`;
                                 setBundledArray(v.sku,'[]');
                                 $.each(v.bundledProduct, function(childKey, childProduct) {
                                     setBundledArray(v.sku,{
@@ -281,6 +290,7 @@ function displayBundledProductsModal(sku){
     var _modal = document.getElementById('childProductModal');
     var modalBody = document.getElementById('childProductModalBody');
     _modal.style.display='block';
+    
     var childrenProductsRow = "";
     var arr = bundledArray[sku];
     var i = 0;
