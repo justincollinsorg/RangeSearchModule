@@ -19,23 +19,45 @@ use Magento\Catalog\Model\Product as ProductModel;
 use Magento\Framework\Controller\ResultFactory;
 use Magento\Framework\App\RequestInterface;
 
+/**
+* Gets All product information needed for search range
+*/
 class Product extends Action
 {
 
-
+    /**
+     * @var \Magento\Framework\Controller\Result\JsonFactory;
+     */
     private $resultJsonFactory;
+    /**
+     * @var \Magento\Catalog\Model\ResourceModel\Product\CollectionFactory;
+     */
     private $collectionFactory;
+    /**
+     * @var \Magento\Catalog\Model\ProductFactory;
+     */
     private $productFactory;
+    /**
+     * @var \Magento\CatalogInventory\Model\Stock\StockItemRepository;
+     */
     private $stockItemRepository;
-    private $product;
 
+    /**
+     * @var \Magento\Catalog\Model\Product
+     */
     private $productModel;
-
+    /**
+     * @var \Psr\Log\LoggerInterface;
+     */
     private $logger;
-
+    /**
+     * @var \Magento\Bundle\Api\ProductLinkManagementInterface;
+     */
     private $productLinkManagement;
 
-
+    /**
+     * @var \Magento\Framework\App\RequestInterface;
+     */
     private $request;
 
 
@@ -61,21 +83,21 @@ class Product extends Action
 
 
     /**
-     * @param JsonFactory $resultJsonFactory
-     * @param Context $context
-     * @param CollectionFactory $collectionFactory
-     * @param ProductFactory $productFactory
-     * @param StoreManagerInterface $storeManager
-     * @param Emulation $appEmulation
+     * @param JsonFactory                       $resultJsonFactory
+     * @param Context                           $context
+     * @param CollectionFactory                 $collectionFactory
+     * @param ProductFactory                    $productFactory
+     * @param StoreManagerInterface             $storeManager
+     * @param Emulation                         $appEmulation
      * @param ProductRepositoryInterfaceFactory $productRepositoryFactory
-     * @param ImageFactory $imageHelperFactory
-     * @param StockItemRepository $stockItemRepository
-     * @param PriceCurrencyInterface $priceCurrencyInterface
-     * @param LoggerInterface $logger
-     * @param ProductLinkManagementInterface $productLinkManagement
-     * @param ProductModel $productModel
-     * @param ResultFactory $resultFactory
-     * @param RequestInterface $request
+     * @param ImageFactory                      $imageHelperFactory
+     * @param StockItemRepository               $stockItemRepository
+     * @param PriceCurrencyInterface            $priceCurrencyInterface
+     * @param LoggerInterface                   $logger
+     * @param ProductLinkManagementInterface    $productLinkManagement
+     * @param ProductModel                      $productModel
+     * @param ResultFactory                     $resultFactory
+     * @param RequestInterface                  $request
      */
     public function __construct(
         JsonFactory $resultJsonFactory,
@@ -91,11 +113,9 @@ class Product extends Action
         LoggerInterface $logger,
         ProductLinkManagementInterface $productLinkManagement,
         ProductModel $productModel,
-
         ResultFactory $resultFactory,
         RequestInterface $request
-        )
-    {
+    ) {
         parent::__construct($context);
         $this->resultJsonFactory = $resultJsonFactory;
         $this->collectionFactory = $collectionFactory;
@@ -114,36 +134,36 @@ class Product extends Action
         $this->resultFactory = $resultFactory;
     }
     /**
-     * @param $pricefrom
-     * @param $priceto
-     * @param $orderBy
+     * @param int $pricefrom
+     * @param int $priceto
+     * @param string $orderBy
      * @return string
      */
     public function filterProduct($pricefrom,$priceto,$orderBy)
     {
         $productCollection = $this->collectionFactory->create();
-        if($orderBy == "asc"){
+        if ($orderBy == "asc") {
             $productCollectionResults = $productCollection
-                        ->addFieldToFilter('price', ['gteq' => $pricefrom])
-                        ->addFieldToFilter('price', ['lteq' => $priceto])
-                        ->addFieldToFilter('visibility',['neq'=>1])
+                ->addFieldToFilter('price', ['gteq' => $pricefrom])
+                ->addFieldToFilter('price', ['lteq' => $priceto])
+                ->addFieldToFilter('visibility', ['neq'=>1])
                         // ->addFieldToFilter('type_id',['eq'=>"group"])
-                        ->addAttributeToSort('price','asc');
+                ->addAttributeToSort('price', 'asc');
         } else
-        if($orderBy == "desc"){
+        if ($orderBy == "desc") {
             $productCollectionResults = $productCollection
-                      ->addFieldToFilter('price', ['gteq' => $pricefrom])
-                        ->addFieldToFilter('price', ['lteq' => $priceto])
-                        ->addFieldToFilter('visibility',['neq'=>1])
-                    ->addFieldToFilter('visibility',['neq'=>1])
+                ->addFieldToFilter('price', ['gteq' => $pricefrom])
+                ->addFieldToFilter('price', ['lteq' => $priceto])
+                ->addFieldToFilter('visibility', ['neq'=>1])
+                ->addFieldToFilter('visibility', ['neq'=>1])
                     // ->addFieldToFilter('type_id',['eq'=>"group"])
-                    ->addAttributeToSort('price','desc');
+                ->addAttributeToSort('price', 'desc');
         }
-        
+
         $resultsFound = count($productCollectionResults->getData());
         $productCollectionResults->setPageSize(10);
         // $productCollectionResults->setCurPage($page);
-        
+
         $rows = array();
         foreach ($productCollectionResults as $data){
             $row = array();
@@ -162,17 +182,17 @@ class Product extends Action
             $row['configurableProduct'] = "";
             $row['priceRange'] = 0;
             $row['bundledProduct'] = 0;
-            if($product->getTypeId() == "configurable"){
+            if ($product->getTypeId() == "configurable") {
                 $row['configurableProduct'] = $this->getChildProducts($product);
             } else
-            if($product->getTypeId() == "downloadable"){
+            if ($product->getTypeId() == "downloadable") {
                 $row['qty'] = "Download";
             } else
-            if($product->getTypeId() == "grouped"){
+            if ($product->getTypeId() == "grouped") {
                 $row['groupedProduct'] = $this->getGroupedProducts($product);
                 $row['priceRange'] = $this->getPriceRange($row['groupedProduct']);
             } else
-            if($product->getTypeId() == "bundle"){
+            if ($product->getTypeId() == "bundle") {
                 $row['priceRange'] = $this->bundlePriceRange($product);
                 $row['bundledProduct'] = $this->getBundledProducts($row['sku']);
             }
@@ -182,15 +202,16 @@ class Product extends Action
     }
 
     /**
-     * @param $price
+     * @param int $price
      * @return string
      */
-    public function formatPrice($price){
+    public function formatPrice($price)
+    {
         return $this->priceCurrencyInterface->convertAndFormat($price);
     }
 
     /**
-     * @param $sku
+     * @param string $sku
      * @return string
      */
     public function imgUrl($sku)
@@ -208,14 +229,14 @@ class Product extends Action
 
         // now the image helper will get the correct URL with the frontend environment emulated
         $imageUrl = $this->imageHelperFactory->create()
-          ->init($product, 'product_thumbnail_image')->getUrl();
+            ->init($product, 'product_thumbnail_image')->getUrl();
         // end emulation
         $this->appEmulation->stopEnvironmentEmulation();
         return $imageUrl;
     }
 
     /**
-     * @param $product
+     * @param object $product
      * @return float
      */
     public function qty($product)
@@ -228,7 +249,11 @@ class Product extends Action
 
         return $productStockData->getQty();
     }
-
+    
+    /**
+     * @param objecy $configProduct
+     * @return array
+     */
     public function getChildProducts($configProduct)
     {
         $childProducts = array();
@@ -246,7 +271,11 @@ class Product extends Action
         }
         return $childProducts;
     }
-
+    
+    /**
+     * @param object $groupedProduct
+     * @return array
+     */
     public function getGroupedProducts($groupedProduct)
     {
         $_groupedProducts = array();
@@ -266,7 +295,7 @@ class Product extends Action
     }
 
     /**
-     * @param $sku
+     * @param string $sku
      * @return array
      * @throws Exception
      */
@@ -277,12 +306,11 @@ class Product extends Action
         try
         {
             $items = $this->productLinkManagement->getChildren($sku);
-        }
+        } 
         catch (Exception $exception)
         {
             throw new Exception($exception->getMessage());
-        }
-
+        } 
         $_bundleProducts = array();
         foreach ($items as $_product){
             // var_dump($_product->getData());
@@ -301,7 +329,7 @@ class Product extends Action
     }
 
     /**
-     * @param $groupedProducts
+     * @param array $groupedProducts
      * @return array|int|void
      */
     public function getPriceRange($groupedProducts)
@@ -310,15 +338,15 @@ class Product extends Action
         $prices = array();
         foreach ($groupedProducts as $productData){
             $tmpPrice = $productData["price"];
-            if($tmpPrice > 0.00){
+            if ($tmpPrice > 0.00) {
                 $prices[] = $tmpPrice;
             }
         }
-        if(count($prices) > 1){
+        if (count($prices) > 1) {
             $min = min($prices);
             $max = max($prices);
-            if($min < $max){
-            return [
+            if ($min < $max) {
+                return [
                 'min' => $this->formatPrice($min),
                 'max' => $this->formatPrice($max)
                 ];
@@ -329,7 +357,7 @@ class Product extends Action
     }
 
     /**
-     * @param $product
+     * @param object $product
      * @return array|int
      */
     public function bundlePriceRange($product)
@@ -337,7 +365,7 @@ class Product extends Action
         $bundleObj=$product->getPriceInfo()->getPrice('final_price');
         $min = $bundleObj->getMinimalPrice()->getValue();// For min price
         $max = $bundleObj->getMaximalPrice()->getValue(); // for max price
-        if($min < $max && $min > 0){
+        if ($min < $max && $min > 0) {
             return [
                 'min' => $this->formatPrice($min),
                 'max' => $this->formatPrice($max)
@@ -346,35 +374,44 @@ class Product extends Action
             return 0;
         }
     }
-
+    
+    /**
+     * @param int $min
+     * @param int $max
+     * @param int $sort
+     * @return bool
+     */
     private function validate($min, $max, $sort)
     {
         $limit = intval($min)*5;
-        if($max > $limit ){
+        if ($max > $limit) {
             return false;
-        } else if(!is_numeric($min)){
+        } elseif (!is_numeric($min)) {
             return false;
-        } else if(!is_numeric($max)){
+        } elseif (!is_numeric($max)) {
             return false;
-        } else if (($sort != "asc") && ($sort != "desc")) {
+        } elseif (($sort != "asc") && ($sort != "desc")) {
             return false;
-        } else if ($max > $limit) {
+        } elseif ($max > $limit) {
             return false;
-        } else if ($max <= $min) {
+        } elseif ($max <= $min) {
             return false;
-        } else if ($min < 0) {
+        } elseif ($min < 0) {
             return false;
         } else {
             return true;
         }
     }
 
+    /**
+     * @return object
+     */
     public function execute()
     {
         $params = $this->getRequest()->getParams();
         $resultJson = $this->resultJsonFactory->create();
-        if($this->validate($params['from'],$params['to'],$params['sort'])){
-            $filterResults = $this->filterProduct($params['from'],$params['to'],$params['sort']);
+        if ($this->validate($params['from'], $params['to'], $params['sort'])) {
+            $filterResults = $this->filterProduct($params['from'], $params['to'], $params['sort']);
             return $resultJson->setData(['json_data' => $filterResults]);
         } else {
             return $resultJson->setData(['json_data' => 'error-v']);
